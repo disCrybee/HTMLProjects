@@ -238,7 +238,7 @@ def create_client(payload: ClientInput, db: Session = Depends(get_db), user: Use
 @app.delete("/api/clients/{client_id}", status_code=204, dependencies=[Depends(current_user)])
 def delete_client(client_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     client = db.get(Client, client_id)
-    if not client:
+    if not client or client.owner_id != user.id:
         raise HTTPException(404, "Client not found")
     if db.scalar(select(Deal.id).where(Deal.client_id == client_id, Deal.owner_id == user.id).limit(1)):
         raise HTTPException(409, "Client has deals; delete them first")
@@ -265,7 +265,7 @@ def create_deal(payload: DealInput, db: Session = Depends(get_db), user: User = 
 @app.patch("/api/deals/{deal_id}", response_model=DealView, dependencies=[Depends(current_user)])
 def change_stage(deal_id: int, payload: StageUpdate, db: Session = Depends(get_db), user: User = Depends(current_user)):
     deal = db.get(Deal, deal_id)
-    if not deal:
+    if not deal or deal.owner_id != user.id:
         raise HTTPException(404, "Deal not found")
     deal.stage = payload.stage
     db.commit()
@@ -276,7 +276,7 @@ def change_stage(deal_id: int, payload: StageUpdate, db: Session = Depends(get_d
 @app.delete("/api/deals/{deal_id}", status_code=204, dependencies=[Depends(current_user)])
 def delete_deal(deal_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     deal = db.get(Deal, deal_id)
-    if not deal:
+    if not deal or deal.owner_id != user.id:
         raise HTTPException(404, "Deal not found")
     db.delete(deal)
     db.commit()
@@ -299,7 +299,7 @@ def create_task(payload: TaskInput, db: Session = Depends(get_db), user: User = 
 @app.patch("/api/tasks/{task_id}", response_model=TaskView, dependencies=[Depends(current_user)])
 def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db), user: User = Depends(current_user)):
     task = db.get(Task, task_id)
-    if not task:
+    if not task or task.owner_id != user.id:
         raise HTTPException(404, "Task not found")
     task.done = payload.done
     db.commit()
@@ -310,7 +310,7 @@ def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)
 @app.delete("/api/tasks/{task_id}", status_code=204, dependencies=[Depends(current_user)])
 def delete_task(task_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     task = db.get(Task, task_id)
-    if not task:
+    if not task or task.owner_id != user.id:
         raise HTTPException(404, "Task not found")
     db.delete(task)
     db.commit()
