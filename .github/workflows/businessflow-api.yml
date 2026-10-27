@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "businessflow/api/**"
+      - "businessflow/cloud.html"
       - ".github/workflows/businessflow-api.yml"
   pull_request:
     paths:
       - "businessflow/api/**"
+      - "businessflow/cloud.html"
       - ".github/workflows/businessflow-api.yml"
 
 jobs:
