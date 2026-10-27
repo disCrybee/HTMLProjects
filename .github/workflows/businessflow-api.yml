@@ -1,0 +1,39 @@
+name: BusinessFlow API tests
+
+on:
+  push:
+    paths:
+      - "businessflow/api/**"
+      - ".github/workflows/businessflow-api.yml"
+  pull_request:
+    paths:
+      - "businessflow/api/**"
+      - ".github/workflows/businessflow-api.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: businessflow/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: businessflow/api/requirements.txt
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q
+      - name: Check frontend script syntax
+        working-directory: .
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('businessflow/cloud.html').read_text()
+          scripts = re.findall(r'<script>(.*?)</script>', html, re.DOTALL)
+          assert len(scripts) == 1
+          Path('/tmp/businessflow-cloud.js').write_text(scripts[0])
+          PY
+          node --check /tmp/businessflow-cloud.js
