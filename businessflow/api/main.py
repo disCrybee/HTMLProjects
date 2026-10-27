@@ -123,6 +123,11 @@ app = FastAPI(title="BusinessFlow API", version="0.3.0", lifespan=lifespan)
 bearer = HTTPBearer(auto_error=False)
 
 
+def get_db():
+    with SessionLocal() as session:
+        yield session
+
+
 def hash_password(password: str, salt: bytes | None = None) -> str:
     salt = salt or secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 310000)
@@ -209,11 +214,6 @@ def me(user: User = Depends(current_user)):
 
 origins = [s.strip() for s in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if s.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type", "Authorization"])
-
-
-def get_db():
-    with SessionLocal() as session:
-        yield session
 
 
 @app.get("/health")
