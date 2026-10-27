@@ -7,10 +7,12 @@ from fastapi.testclient import TestClient
 def test_crm_workflow():
     with tempfile.TemporaryDirectory() as directory:
         os.environ["DATABASE_URL"] = f"sqlite:///{directory}/test.db"
+        os.environ["BUSINESSFLOW_API_KEY"] = "test-development-key"
         from importlib import reload
         import main
         reload(main)
         with TestClient(main.app) as client:
+            client.headers.update({"Authorization": "Bearer test-development-key"})
             assert client.get("/health").json() == {"status": "ok"}
             c = client.post("/api/clients", json={"name": "Ada", "company": "Orbit", "email": "ada@example.com"})
             assert c.status_code == 201
@@ -34,9 +36,25 @@ def test_crm_workflow():
 def test_invalid_deal_value():
     with tempfile.TemporaryDirectory() as directory:
         os.environ["DATABASE_URL"] = f"sqlite:///{directory}/test.db"
+        os.environ["BUSINESSFLOW_API_KEY"] = "test-development-key"
         from importlib import reload
         import main
         reload(main)
         with TestClient(main.app) as client:
+            client.headers.update({"Authorization": "Bearer test-development-key"})
             res = client.post("/api/deals", json={"name": "Bad", "client_id": 12, "value": -2})
             assert res.status_code == 422
+
+
+def test_api_requires_authentication():
+    with tempfile.TemporaryDirectory() as directory:
+        os.environ["DATABASE_URL"] = f"sqlite:///{directory}/test.db"
+        os.environ["BUSINESSFLOW_API_KEY"] = "another-test-key"
+        from importlib import reload
+        import main
+        reload(main)
+        with TestClient(main.app) as client:
+            assert client.get("/health").status_code == 200
+            assert client.get("/api/clients").status_code == 401
+            assert client.get("/api/clients", headers={"Authorization": "Bearer wrong"}).status_code == 401
+            assert client.get("/api/clients", headers={"Authorization": "Bearer another-test-key"}).status_code == 200
