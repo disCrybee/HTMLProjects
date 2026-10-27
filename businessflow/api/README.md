@@ -1,48 +1,53 @@
 # BusinessFlow API
 
-REST API foundation for the BusinessFlow CRM demo.
+Backend for the BusinessFlow CRM portfolio project.
 
-## Run locally or in a cloud development environment
+## Status
 
-Python 3.11+:
+The API now implements password-based registration and login with short-lived signed bearer tokens. Client, deal and task records are scoped to the authenticated account. GitHub Actions runs integration tests.
+
+**Not yet production-ready:** registration abuse controls, account recovery, session revocation, email verification, data migrations, audit logging and deployment configuration are still required. The public Cloudflare Pages demo is not connected to this API.
+
+## Running
+
+Python 3.12+:
 
 ```bash
 pip install -r requirements.txt
+export BUSINESSFLOW_SESSION_SECRET="replace-with-a-long-random-secret-at-least-32-characters"
 uvicorn main:app --reload
 ```
 
-Configure a private API key before starting the service:
+PowerShell: `$env:BUSINESSFLOW_SESSION_SECRET="..."`
 
-```bash
-export BUSINESSFLOW_API_KEY="replace-with-a-long-random-secret"
-```
+Use a cloud development environment if you do not want to download the project. Open `/docs` for interactive API documentation.
 
-On Windows PowerShell, use `$env:BUSINESSFLOW_API_KEY="..."`.
+## Storage
 
-Every `/api/*` endpoint requires `Authorization: Bearer <your-key>`. If no key is set, requests fail closed (503). **Never put this secret inside the public Pages frontend.** This key is only a temporary backend development guard, **not** a user login system.
+`DATABASE_URL` defaults to `sqlite:///./businessflow.db`. For PostgreSQL install a compatible database driver and configure a `postgresql+psycopg://...` URL. `CORS_ORIGINS` accepts comma-separated allowed origins.
 
-API docs: http://127.0.0.1:8000/docs
+**Schema change:** owner IDs and the users table were added. SQLAlchemy `create_all()` does not migrate existing tables. Use a fresh development database for now; proper versioned migrations are required before deployment.
 
-Run tests:
+## Authentication
+
+- `POST /auth/register`: email and password, minimum 12 characters
+- `POST /auth/login`: return a 1-hour signed bearer access token
+- `GET /auth/me`: return current account identity
+- All `/api/*` endpoints require `Authorization: Bearer <token>`
+
+Do not store tokens in public repositories or embed the session secret in frontend code.
+
+## API
+
+- `GET, POST /api/clients` and `DELETE /api/clients/{id}`
+- `GET, POST /api/deals`, `PATCH, DELETE /api/deals/{id}`
+- `GET, POST /api/tasks`, `PATCH, DELETE /api/tasks/{id}`
+- `GET /api/metrics`
+
+## Tests
 
 ```bash
 pytest -q
 ```
 
-## Configuration
-
-- `DATABASE_URL` defaults to local SQLite (`sqlite:///./businessflow.db`). For PostgreSQL, install a compatible driver (such as `psycopg[binary]`) and use `postgresql+psycopg://...`.
-- `CORS_ORIGINS` is a comma-separated list of allowed frontend origins.
-- `BUSINESSFLOW_API_KEY` is a required private server-side secret.
-
-## Endpoints
-
-- `GET /health`
-- `GET, POST /api/clients`, `DELETE /api/clients/{id}`
-- `GET, POST /api/deals`, `PATCH, DELETE /api/deals/{id}`
-- `GET, POST /api/tasks`, `PATCH, DELETE /api/tasks/{id}`
-- `GET /api/metrics`
-
-## Development status
-
-This is an **unreleased backend foundation**. The public Cloudflare Pages site continues to use browser localStorage; it is not yet connected to these endpoints. **Do not deploy the API publicly as a multi-user CRM** until authentication, per-user access controls, rate limiting, migrations, and production configuration are implemented. Sample accounts or login claims are not implemented.
+GitHub Actions runs API tests on pushes and pull requests.
