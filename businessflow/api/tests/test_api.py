@@ -67,3 +67,24 @@ def test_validation():
             res = client.post("/api/deals", json={"name": "Bad", "client_id": 12, "value": -2}, headers=headers)
             assert res.status_code == 422
             assert client.post("/auth/register", json={"email": "test@example.com", "password": "a-strong-test-password"}).status_code == 409
+
+
+def test_cannot_change_other_users_deals_or_tasks():
+    with tempfile.TemporaryDirectory() as directory:
+        with make_client(directory) as client:
+            first = register(client, "owner@example.com")
+            second = register(client, "other@example.com")
+            c = client.post("/api/clients", headers=first, json={"name": "Owner", "company": "Own Co", "email": "owner@example.com"})
+            cid = c.json()["id"]
+            d = client.post("/api/deals", headers=first, json={"name": "Private deal", "client_id": cid, "value": 450})
+            t = client.post("/api/tasks", headers=first, json={"title": "Private task", "due": "Next week"})
+            did, tid = d.json()["id"], t.json()["id"]
+            assert client.get("/api/deals", headers=second).json() == []
+            assert client.get("/api/tasks", headers=second).json() == []
+            assert client.patch(f"/api/deals/{did}", headers=second, json={"stage": "Won"}).status_code == 404
+            assert client.delete(f"/api/deals/{did}", headers=second).status_code == 404
+            assert client.patch(f"/api/tasks/{tid}", headers=second, json={"done": True}).status_code == 404
+            assert client.delete(f"/api/tasks/{tid}", headers=second).status_code == 404
+            assert client.get("/api/metrics", headers=second).json()["open_pipeline"] == 0
+            assert client.get("/api/deals", headers=first).json()[0]["stage"] == "Lead"
+            assert client.get("/api/tasks", headers=first).json()[0]["done"] is False
