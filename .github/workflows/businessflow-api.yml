@@ -5,6 +5,7 @@ on:
     paths:
       - "businessflow/api/**"
       - "businessflow/cloud.html"
+      - "businessflow/index.html"
       - ".github/workflows/businessflow-api.yml"
   pull_request:
     paths:
@@ -33,9 +34,11 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import re
-          html = Path('businessflow/cloud.html').read_text()
-          scripts = re.findall(r'<script>(.*?)</script>', html, re.DOTALL)
-          assert len(scripts) == 1
-          Path('/tmp/businessflow-cloud.js').write_text(scripts[0])
+          for page in ('cloud.html', 'index.html'):
+              html = (Path('businessflow') / page).read_text()
+              scripts = re.findall(r'<script>(.*?)</script>', html, re.DOTALL)
+              assert len(scripts) == 1
+              Path('/tmp/businessflow-' + page + '.js').write_text(scripts[0])
           PY
-          node --check /tmp/businessflow-cloud.js
+          node --check /tmp/businessflow-cloud.html.js
+          node --check /tmp/businessflow-index.html.js
