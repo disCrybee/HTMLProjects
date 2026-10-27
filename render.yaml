@@ -1,0 +1,25 @@
+# Deploy BusinessFlow's API and database together with Render Blueprint.
+# Render Free Postgres is temporary (expires after 30 days); demo data only.
+services:
+  - type: web
+    name: businessflow-api
+    runtime: python
+    plan: free
+    rootDir: businessflow/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: businessflow-db
+          property: connectionString
+      - key: BUSINESSFLOW_SESSION_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://businessflow-crm.pages.dev
+databases:
+  - name: businessflow-db
+    plan: free
+    databaseName: businessflow
+    user: businessflow
