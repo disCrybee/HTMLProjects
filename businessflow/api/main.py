@@ -4,7 +4,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import secrets
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, create_engine, func, select
@@ -102,9 +104,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="BusinessFlow API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="BusinessFlow API", version="0.2.0", lifespan=lifespan)
+bearer = HTTPBearer(auto_error=False)
+
+
+def require_api_key(credentials: HTTPAuthorizationCredentials | None = Security(bearer)):
+    """Temporary server-side access guard; not user authentication."""
+    configured_key = os.getenv("BUSINESSFLOW_API_KEY", "")
+    if not configured_key:
+        raise HTTPException(503, "API access key is not configured")
+    if credentials is None or not secrets.compare_digest(credentials.credentials, configured_key):
+        raise HTTPException(401, "Invalid or missing API key", headers={"WWW-Authenticate": "Bearer"})
+
 origins = [s.strip() for s in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if s.strip()]
-app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type"])
+app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type", "Authorization"])
 
 
 def get_db():
@@ -117,12 +130,12 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/api/clients", response_model=list[ClientView])
+@app.get("/api/clients", response_model=list[ClientView], dependencies=[Depends(require_api_key)])
 def list_clients(db: Session = Depends(get_db)):
     return db.scalars(select(Client).order_by(Client.id.desc())).all()
 
 
-@app.post("/api/clients", response_model=ClientView, status_code=201)
+@app.post("/api/clients", response_model=ClientView, status_code=201, dependencies=[Depends(require_api_key)])
 def create_client(payload: ClientInput, db: Session = Depends(get_db)):
     client = Client(**payload.model_dump())
     db.add(client)
@@ -131,7 +144,7 @@ def create_client(payload: ClientInput, db: Session = Depends(get_db)):
     return client
 
 
-@app.delete("/api/clients/{client_id}", status_code=204)
+@app.delete("/api/clients/{client_id}", status_code=204, dependencies=[Depends(require_api_key)])
 def delete_client(client_id: int, db: Session = Depends(get_db)):
     client = db.get(Client, client_id)
     if not client:
@@ -142,12 +155,12 @@ def delete_client(client_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-@app.get("/api/deals", response_model=list[DealView])
+@app.get("/api/deals", response_model=list[DealView], dependencies=[Depends(require_api_key)])
 def list_deals(db: Session = Depends(get_db)):
     return db.scalars(select(Deal).order_by(Deal.id.desc())).all()
 
 
-@app.post("/api/deals", response_model=DealView, status_code=201)
+@app.post("/api/deals", response_model=DealView, status_code=201, dependencies=[Depends(require_api_key)])
 def create_deal(payload: DealInput, db: Session = Depends(get_db)):
     if not db.get(Client, payload.client_id):
         raise HTTPException(404, "Client not found")
@@ -158,7 +171,7 @@ def create_deal(payload: DealInput, db: Session = Depends(get_db)):
     return deal
 
 
-@app.patch("/api/deals/{deal_id}", response_model=DealView)
+@app.patch("/api/deals/{deal_id}", response_model=DealView, dependencies=[Depends(require_api_key)])
 def change_stage(deal_id: int, payload: StageUpdate, db: Session = Depends(get_db)):
     deal = db.get(Deal, deal_id)
     if not deal:
@@ -169,7 +182,7 @@ def change_stage(deal_id: int, payload: StageUpdate, db: Session = Depends(get_d
     return deal
 
 
-@app.delete("/api/deals/{deal_id}", status_code=204)
+@app.delete("/api/deals/{deal_id}", status_code=204, dependencies=[Depends(require_api_key)])
 def delete_deal(deal_id: int, db: Session = Depends(get_db)):
     deal = db.get(Deal, deal_id)
     if not deal:
@@ -178,12 +191,12 @@ def delete_deal(deal_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-@app.get("/api/tasks", response_model=list[TaskView])
+@app.get("/api/tasks", response_model=list[TaskView], dependencies=[Depends(require_api_key)])
 def list_tasks(db: Session = Depends(get_db)):
     return db.scalars(select(Task).order_by(Task.id.desc())).all()
 
 
-@app.post("/api/tasks", response_model=TaskView, status_code=201)
+@app.post("/api/tasks", response_model=TaskView, status_code=201, dependencies=[Depends(require_api_key)])
 def create_task(payload: TaskInput, db: Session = Depends(get_db)):
     task = Task(**payload.model_dump(), done=False)
     db.add(task)
@@ -192,7 +205,7 @@ def create_task(payload: TaskInput, db: Session = Depends(get_db)):
     return task
 
 
-@app.patch("/api/tasks/{task_id}", response_model=TaskView)
+@app.patch("/api/tasks/{task_id}", response_model=TaskView, dependencies=[Depends(require_api_key)])
 def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)):
     task = db.get(Task, task_id)
     if not task:
@@ -203,7 +216,7 @@ def update_task(task_id: int, payload: TaskUpdate, db: Session = Depends(get_db)
     return task
 
 
-@app.delete("/api/tasks/{task_id}", status_code=204)
+@app.delete("/api/tasks/{task_id}", status_code=204, dependencies=[Depends(require_api_key)])
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     task = db.get(Task, task_id)
     if not task:
@@ -212,7 +225,7 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
-@app.get("/api/metrics")
+@app.get("/api/metrics", dependencies=[Depends(require_api_key)])
 def metrics(db: Session = Depends(get_db)):
     deals = db.scalars(select(Deal)).all()
     return {
