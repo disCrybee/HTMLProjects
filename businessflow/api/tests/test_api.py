@@ -88,3 +88,24 @@ def test_cannot_change_other_users_deals_or_tasks():
             assert client.get("/api/metrics", headers=second).json()["open_pipeline"] == 0
             assert client.get("/api/deals", headers=first).json()[0]["stage"] == "Lead"
             assert client.get("/api/tasks", headers=first).json()[0]["done"] is False
+
+
+def test_logout_login_again_retains_records():
+    with tempfile.TemporaryDirectory() as directory:
+        with make_client(directory) as client:
+            headers = register(client, "repeat@example.com")
+            created = client.post("/api/clients", headers=headers, json={
+                "name": "Fictional client", "company": "Demo Ltd", "email": "fictional@example.com"
+            })
+            assert created.status_code == 201
+            # Simulate logout by discarding the bearer token, then a new login.
+            assert client.get("/api/clients").status_code == 401
+            login = client.post("/auth/login", json={
+                "email": "  REPEAT@example.com ", "password": "a-strong-test-password"
+            })
+            assert login.status_code == 200, login.text
+            new_headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+            records = client.get("/api/clients", headers=new_headers)
+            assert records.status_code == 200
+            assert records.json()[0]["name"] == "Fictional client"
+            assert client.get("/auth/me", headers=new_headers).json()["email"] == "repeat@example.com"
