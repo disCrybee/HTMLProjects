@@ -153,7 +153,7 @@ def sign_token(user_id: int) -> str:
     secret = os.getenv("BUSINESSFLOW_SESSION_SECRET", "")
     if len(secret) < 32:
         raise HTTPException(503, "Session secret not configured")
-    payload = base64.urlsafe_b64encode(json.dumps({"sub": user_id, "exp": int(time.time()) + 3600}).encode()).rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({"sub": user_id, "exp": int(time.time()) + 7 * 24 * 3600}).encode()).rstrip(b"=").decode()
     signature = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return payload + "." + signature
 
